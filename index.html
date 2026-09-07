@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flight Dispatcher • Integración SkyVector & Cálculo Automático</title>
+    <!-- Leaflet CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        :root {
+            --primary: #0f172a;
+            --secondary: #1e3a8a;
+            --accent: #2563eb;
+            --bg: #0b0f19;
+            --card-bg: #1e293b;
+            --text: #f8fafc;
+            --border: #334155;
+            --highlight: #38bdf8;
+            --success: #16a34a;
+            --danger: #dc2626;
+            --gold: #d97706;
+            --gold-bright: #fbbf24;
+        }
+        body {
+            font-family: 'Monaco', 'Consolas', 'Courier New', monospace;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 15px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            border: 1px solid var(--border);
+        }
+        .header-title {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            border-bottom: 2px solid var(--gold);
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+        .header-text { text-align: center; }
+        .header-title h1 { color: var(--gold-bright); margin: 0; font-size: 1.6rem; letter-spacing: 2px; text-transform: uppercase; }
+        .header-title h2 { color: #94a3b8; margin: 5px 0 0 0; font-size: 0.85rem; letter-spacing: 1px; }
+        
+        /* SkyVector Widget Custom Banner */
+        .skyvector-banner {
+            background: #0f172a;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        .skyvector-info h4 {
+            margin: 0 0 4px 0;
+            color: var(--highlight);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+        }
+        .skyvector-info p {
+            margin: 0;
+            font-size: 0.75rem;
+            color: #94a3b8;
+        }
+        #sv_6387 {
+            background: #1e293b;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        .card {
+            background: #0f172a;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+        }
+        .card h3 {
+            margin-top: 0;
+            color: var(--highlight);
+            font-size: 0.9rem;
+            border-bottom: 1px dashed var(--border);
+            padding-bottom: 4px;
+        }
+        .form-group { margin-bottom: 8px; }
+        label { display: block; font-size: 0.72rem; color: #94a3b8; margin-bottom: 2px; text-transform: uppercase; }
+        input, select, textarea {
+            width: 100%;
+            padding: 6px;
+            background: #1e293b;
+            color: #00ff66;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 0.85rem;
+            font-family: inherit;
+            font-weight: bold;
+        }
+        textarea { resize: vertical; height: 45px; }
+        button.btn-calc {
+            width: 100%;
+            background-color: var(--success);
+            color: white;
+            padding: 12px;
+            border: none;
+            border-radius: 4px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            font-family: inherit;
+            text-transform: uppercase;
+            margin-top: 10px;
+        }
+        .btn-action-small {
+            background: #334155;
+            color: #f8fafc;
+            border: 1px solid var(--border);
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.7rem;
+            font-weight: bold;
+            font-family: inherit;
+        }
+        .btn-action-small:hover { background: #475569; }
+        .btn-action-danger { background: #7f1d1d; color: #fca5a5; border: 1px solid var(--danger); }
+        .btn-action-danger:hover { background: #991b1b; }
+        .route-actions-bar { display: flex; justify-content: flex-end; gap: 6px; margin-top: 4px; }
+        .waypoint-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 8px;
+            padding: 6px;
+            background: #1e293b;
+            border-radius: 4px;
+            min-height: 38px;
+            align-items: center;
+            border: 1px solid var(--border);
+        }
+        .chip {
+            background: #334155;
+            color: #fbbf24;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            border: 1px solid var(--gold);
+        }
+        .chip span.remove-btn { color: #f87171; cursor: pointer; font-weight: bold; font-size: 0.85rem; }
+        .chip span.remove-btn:hover { color: #ef4444; }
+        #map { height: 480px; width: 100%; border-radius: 6px; border: 1px solid var(--border); margin-top: 15px; }
+        .intersection-marker { background: transparent; border: none; }
+        .triangle-symbol {
+            width: 0; height: 0;
+            border-left: 7px solid transparent;
+            border-right: 7px solid transparent;
+            border-bottom: 12px solid #fbbf24;
+            position: relative;
+            filter: drop-shadow(0 0 2px #000);
+        }
+        .triangle-label {
+            position: absolute; left: -25px; top: 14px;
+            font-size: 10px; font-weight: bold; color: #fbbf24;
+            background: rgba(15, 23, 42, 0.9); padding: 1px 4px;
+            border-radius: 3px; white-space: nowrap; border: 1px solid #d97706;
+            font-family: 'Monaco', monospace;
+        }
+        .terminal-output {
+            background: #000; color: #00ff66; padding: 12px;
+            border-radius: 6px; font-size: 0.8rem; line-height: 1.4;
+            border: 1px solid var(--border); margin-top: 15px; white-space: pre-wrap;
+        }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 0.8rem; }
+        th, td { border: 1px solid var(--border); padding: 6px; text-align: center; }
+        th { background-color: var(--secondary); color: white; }
+        tr:nth-child(even) { background-color: #0f172a; }
+        .print-section {
+            display: none; background: #ffffff; color: #000000;
+            padding: 20px; border-radius: 6px; margin-top: 25px; border: 2px solid #000;
+        }
+        .print-section table { color: #000; border-color: #000; }
+        .print-section th, .print-section td { border: 1px solid #000; padding: 6px; }
+        .print-section th { background-color: #e2e8f0; color: #000; }
+        .btn-print {
+            background-color: var(--accent); color: white; padding: 10px 20px;
+            border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-top: 15px; float: right;
+        }
+        @media print {
+            body * { visibility: hidden; }
+            #printArea, #printArea * { visibility: visible; }
+            #printArea { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 10px; }
+            .btn-print { display: none; }
+        }
+        .footer-brand {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            margin-top: 25px; padding: 20px; border-top: 2px solid var(--gold); background: #000; border-radius: 0 0 6px 6px;
+        }
+        .footer-brand h3 { color: var(--gold-bright); margin: 0; font-size: 1.1rem; letter-spacing: 1.5px; }
+        .footer-brand p { color: #94a3b8; margin: 4px 0 0 0; font-size: 0.75rem; letter-spacing: 1px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header-title">
+            <div class="header-text">
+                <h1>FLIGHT DISPATCHER</h1>
+                <h2>CÁLCULO AUTOMÁTICO DE TIEMPO, BLOQUE Y CRUCES DE FIR</h2>
+            </div>
+        </div>
+
+        <!-- Integración del widget de SkyVector -->
+        <div class="skyvector-banner">
+            <div class="skyvector-info">
+                <h4>SkyVector Aeronautical Integration</h4>
+                <p>Cartas aeronáuticas globales en tiempo real integradas para referencia en ruta y meteorología.</p>
+            </div>
+            <div id="sv_6387" style="width: 180px; height: 120px;">
+                Make your <a href="https://skyvector.com/">Flight Plan</a> at SkyVector.com
+            </div>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <h3>1. Datos de Vuelo & Pasajeros</h3>
+                <div class="form-group">
+                    <label>UNIDAD DE PESO:</label>
+                    <select id="weight_unit" onchange="calculateAll()">
+                        <option value="KG" selected>KILOGRAMOS (KG) — 75 kg/pax</option>
+                        <option value="LBS">LIBRAS (LBS) — 165 lbs/pax</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>MATRÍCULA:</label>
+                    <input type="text" id="tail_number" value="YV663T">
+                </div>
+                <div class="form-group">
+                    <label>CANTIDAD DE PASAJEROS:</label>
+                    <input type="number" id="pax_count" value="140" oninput="calculateAll()">
+                </div>
+                <div class="form-group">
+                    <label>PESO TOTAL PAXS:</label>
+                    <input type="text" id="pax_weight_display" readonly style="color: #00ff66;">
+                </div>
+                <div class="form-group">
+                    <label>AEROPUERTO ORIGEN:</label>
+                    <input type="text" id="origin_input" value="SVMI" style="text-transform: uppercase;" oninput="handleOriginDestinationChange()">
+                </div>
+                <div class="form-group">
+                    <label>AEROPUERTO DESTINO:</label>
+                    <input type="text" id="destination_input" value="SLVR" style="text-transform: uppercase;" oninput="handleOriginDestinationChange()">
+                </div>
+                <div class="form-group">
+                    <label>VELOCIDAD DE CRUCERO (KTAS):</label>
+                    <input type="number" id="cruising_speed" value="450" oninput="calculateAll()">
+                </div>
+                <div class="form-group">
+                    <label>DISTANCIA RUTA (NM):</label>
+                    <input type="number" id="dist_nm" readonly style="color: #fbbf24; font-weight: bold;">
+                </div>
+                <div class="form-group">
+                    <label>DISTANCIA (KM):</label>
+                    <input type="number" id="dist_km" readonly style="color: #fbbf24;">
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>2. Tiempos Automáticos & Detección de FIRs</h3>
+                <div class="form-group">
+                    <label>HORAS VUELO (CÁLCULO AUTOMÁTICO):</label>
+                    <input type="text" id="flight_hours" readonly style="color: #fbbf24; font-weight: bold;">
+                </div>
+                <div class="form-group">
+                    <label>HORAS BLOQUE (+30 MIN TAXI/MANIOBRAS):</label>
+                    <input type="text" id="block_hours" readonly style="color: #fbbf24; font-weight: bold;">
+                </div>
+                <div class="form-group">
+                    <label>CRUCES DE FIR DETECTADOS (AUTOMÁTICO):</label>
+                    <textarea id="fir_dynamic_display" readonly style="color: #38bdf8; font-size: 0.78rem; height: 65px;"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>AEROPUERTO ALTERNADO:</label>
+                    <input type="text" id="alt_input" value="SLCB" style="text-transform: uppercase;" oninput="calculateAll()">
+                </div>
+                <div class="form-group">
+                    <label>RUTA AUTOMÁTICA SUGERIDA:</label>
+                    <input type="text" id="optimized_route_display" readonly style="color: #fbbf24; font-size: 0.8rem;">
+                </div>
+                <div class="form-group">
+                    <label>AÑADIR WAYPOINT MANUALMENTE:</label>
+                    <select id="manual_waypoint_selector" onchange="appendManualWaypoint()">
+                        <option value="" disabled selected>-- SELECCIONAR PUNTO / FIR --</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>SECUENCIA DE RUTA EDITABLE:</label>
+                    <input type="text" id="manual_route_input" value="SVMI ISARA AKPEP TNCF_FIR SLVR" oninput="calculateAll()">
+                    <div class="route-actions-bar">
+                        <button type="button" class="btn-action-small" onclick="removeLastManualWaypoint()">⌫ BORRAR ÚLTIMO</button>
+                        <button type="button" class="btn-action-small btn-action-danger" onclick="clearManualRoute()">LIMPIAR TODO</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>PUNTOS INTERMEDIOS (CLIC PARA QUITAR):</label>
+                    <div class="waypoint-chips" id="waypoint_chips_container"></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>3. Perfil de Combustible & Disponibilidad PAX</h3>
+                <div class="form-group">
+                    <label>COMBUSTIBLE TOTAL / FOB (KG):</label>
+                    <input type="number" id="fob_val" value="10886" oninput="calculateAll()">
+                </div>
+                <div class="form-group">
+                    <label>CONSUMO / TRIP FUEL (KG):</label>
+                    <input type="number" id="burn_val" value="6803" oninput="calculateAll()">
+                </div>
+                <div class="form-group">
+                    <label>COMBUSTIBLE REQUERIDO (KG):</label>
+                    <input type="number" id="req_val" value="13607" oninput="calculateAll()">
+                </div>
+                <div class="form-group">
+                    <label>REMANENTE CALCULADO (KG):</label>
+                    <input type="number" id="rem_val" readonly style="color: #ffcc00;">
+                </div>
+                <div class="form-group">
+                    <label>MÁX. PASAJEROS PERMITIDOS (SEGÚN REMANENTE):</label>
+                    <input type="text" id="max_pax_allowed" readonly style="color: #38bdf8; font-size: 0.95rem;">
+                </div>
+                <div class="form-group">
+                    <label>OBSERVACIÓN:</label>
+                    <textarea id="obs_note">NOTA: CÁLCULO AUTOMÁTICO DE TIEMPOS, HORA BLOQUE Y CRUCES DE FIR SEGÚN COORDENADAS GEOGRÁFICAS Y VELOCIDAD DE CRUCERO.</textarea>
+                </div>
+            </div>
+        </div>
+
+        <button class="btn-calc" type="button" onclick="calculateAll()">RECALCULAR OFP & TIEMPOS</button>
+        
+        <div id="map"></div>
+
+        <div class="terminal-output" id="terminal">
+=== FLIGHT DISPATCHER SYSTEM • CÁLCULO AUTOMÁTICO ACTIVO ===
+Awaiting Calculation...
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>DESCRIPCIÓN</th>
+                    <th>KILOS (KG)</th>
+                    <th>LIBRAS (LBS)</th>
+                    <th>LITROS (LTS)</th>
+                    <th>GALONES (GAL)</th>
+                </tr>
+            </thead>
+            <tbody id="fuel-table">
+            </tbody>
+        </table>
+
+        <div class="print-section" id="printArea">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 15px;">
+                <div style="text-align: center;">
+                    <h2 style="margin: 0; font-size: 1.2rem;">PLAN DE VUELO OPERACIONAL (OFP) & TIEMPOS AUTOMÁTICOS</h2>
+                    <h4 style="margin: 2px 0 0 0; color: #475569;">DESPACHO DE VUELO • CÁLCULO DE FIR Y SECTORES</h4>
+                </div>
+                <div style="text-align: right; font-size: 0.75rem;">
+                    <strong>FECHA:</strong> <span id="print_date"></span><br>
+                    <strong>MATRÍCULA:</strong> <span id="print_tail"></span>
+                </div>
+            </div>
+
+            <table style="margin-bottom: 15px;">
+                <thead>
+                    <tr>
+                        <th>RUTA</th>
+                        <th>PASAJEROS</th>
+                        <th>HORAS VUELO (AUTO)</th>
+                        <th>HORAS BLOQUE (AUTO)</th>
+                        <th>DISTANCIA NM</th>
+                        <th>DISTANCIA KM</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td id="p_route">-</td>
+                        <td id="p_pax">-</td>
+                        <td id="p_fhours">-</td>
+                        <td id="p_bhours">-</td>
+                        <td id="p_distnm">-</td>
+                        <td id="p_distkm">-</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h4 style="margin: 10px 0 5px 0;">TABLA DE CÁLCULO DE COMBUSTIBLE</h4>
+            <table>
+                <thead>
+                    <tr>
+                        <th>DESCRIPCIÓN</th>
+                        <th>KILOS (KG)</th>
+                        <th>LIBRAS (LBS)</th>
+                        <th>LITROS (LTS)</th>
+                        <th>GALONES (GAL)</th>
+                    </tr>
+                </thead>
+                <tbody id="print_fuel_table">
+                </tbody>
+            </table>
+
+            <div style="margin-top: 15px; border: 1px solid #000; padding: 10px; font-size: 0.8rem; background: #f8fafc;">
+                <strong>LÍNEAS DE CRUCE Y FIRs DETECTADOS:</strong><br>
+                <span id="p_firs_breakdown">-</span><br><br>
+                <strong>CAPACIDAD MÁXIMA DE PASAJEROS:</strong> <span id="p_max_pax">-</span><br><br>
+                <strong>OBSERVACIONES:</strong>
+                <p id="p_obs" style="margin: 5px 0 0 0; font-style: italic;"></p>
+            </div>
+
+            <div style="margin-top: 30px; display: flex; justify-content: space-between; text-align: center; font-size: 0.8rem;">
+                <div style="width: 40%; border-top: 1px solid #000; padding-top: 5px;">
+                    FIRMA DESPACHADOR DE VUELO
+                </div>
+                <div style="width: 40%; border-top: 1px solid #000; padding-top: 5px;">
+                    FIRMA COMANDANTE DE ANAV
+                </div>
+            </div>
+
+            <button class="btn-print" onclick="window.print()">IMPRIMIR OFP / PLAN DE VUELO</button>
+            <div style="clear: both;"></div>
+        </div>
+
+        <div class="footer-brand">
+            <h3>FLIGHT DISPATCHER</h3>
+            <p>PLANIFICACIÓN SEGURA — CONTROL OPERACIONAL & DESPACHO RAV</p>
+        </div>
+    </div>
+
+    <!-- Script de SkyVector requerido -->
+    <script src="//skyvector.com/api/lchart?ll=40.392580713239035,-115.14916991787906&amp;s=10&amp;c=sv_6387&amp;i=301" type="text/javascript"></script>
+
+    <script>
+        const LBS_FACTOR = 2.20462262;
+        const KG_FACTOR = 0.45359237;
+        const LTS_PER_KG = 1.25;
+        const GAL_PER_KG = 0.3302;
+        const PAX_STD_KG = 75;
+        const PAX_STD_LBS = 165;
+
+        const waypointsDB = {
+            "SVMI": { name: "Maiquetía Simón Bolívar (Venezuela)", lat: 10.6012, lon: -66.9912, type: "AD", fir: "SVZM_FIR" },
+            "SLVR": { name: "Santa Cruz - Viru Viru (Bolivia)", lat: -17.6447, lon: -63.1353, type: "AD", fir: "SLLF_FIR" },
+            "SLCB": { name: "Cochabamba (Bolivia)", lat: -17.4211, lon: -66.1761, type: "AD", fir: "SLLF_FIR" },
+            "SLLP": { name: "La Paz (Bolivia)", lat: -16.5133, lon: -68.1922, type: "AD", fir: "SLLF_FIR" },
+            "SKBO": { name: "Bogotá (Colombia)", lat: 4.7016, lon: -74.1469, type: "AD", fir: "SKEC_FIR" },
+            "MPTO": { name: "Panamá Tocumen (Panamá)", lat: 9.0714, lon: -79.3835, type: "AD", fir: "MPZL_FIR" },
+            "MDPC": { name: "Punta Cana (República Dominicana)", lat: 18.5674, lon: -68.3634, type: "AD", fir: "MDCS_FIR" },
+            "MUCU": { name: "Santiago de Cuba (Cuba)", lat: 19.9694, lon: -75.8356, type: "AD", fir: "MUFH_FIR" },
+            "SBRJ": { name: "Rio de Janeiro (Brasil)", lat: -22.9100, lon: -43.1625, type: "AD", fir: "SBCW_FIR" },
+            "SBPV": { name: "Porto Velho (Brasil)", lat: -8.7619, lon: -63.9028, type: "AD", fir: "SBAZ_FIR" },
+            "ISARA": { name: "ISARA (INTERSECTION)", lat: 10.4000, lon: -67.6500, type: "FIX", fir: "SVZM_FIR" },
+            "AKPEP": { name: "AKPEP (INTERSECTION)", lat: 10.3000, lon: -67.8000, type: "FIX", fir: "SVZM_FIR" },
+            "DILOK": { name: "DILOK (INTERSECTION)", lat: 11.1500, lon: -67.0000, type: "FIX", fir: "SVZM_FIR" },
+            "ARUBA": { name: "ARUBA (WAYPOINT)", lat: 12.5000, lon: -70.0000, type: "FIX", fir: "TNCF_FIR" },
+            "OROSA": { name: "OROSA (WAYPOINT)", lat: 9.5000, lon: -65.5000, type: "FIX", fir: "SVZM_FIR" },
+            "BNS": { name: "BARINAS VOR (BNS)", lat: 8.6189, lon: -70.2208, type: "VOR", fir: "SVZM_FIR" },
+            "PBL": { name: "PUERTO CABELLO VOR (PBL)", lat: 10.4789, lon: -68.0725, type: "VOR", fir: "SVZM_FIR" },
+            "SVZM_FIR": { name: "FIR Maiquetía (Venezuela)", lat: 10.6012, lon: -66.9912, type: "FIR", code: "SVZM" },
+            "TNCF_FIR": { name: "FIR Curazao (Antillas Neerlandesas)", lat: 12.1800, lon: -68.9000, type: "FIR", code: "TNCF" },
+            "SKEC_FIR": { name: "FIR Bogotá (Colombia)", lat: 4.6000, lon: -72.0000, type: "FIR", code: "SKEC" },
+            "SBAZ_FIR": { name: "FIR Amazónico (Brasil)", lat: -3.1000, lon: -60.0000, type: "FIR", code: "SBAZ" },
+            "SLLF_FIR": { name: "FIR La Paz (Bolivia)", lat: -16.5133, lon: -68.1922, type: "FIR", code: "SLLF" },
+            "MPZL_FIR": { name: "FIR Panamá (Panamá)", lat: 9.0714, lon: -79.3835, type: "FIR", code: "MPZL" },
+            "MDCS_FIR": { name: "FIR Santo Domingo (Rep. Dominicana)", lat: 18.4297, lon: -69.6689, type: "FIR", code: "MDCS" },
+            "MUFH_FIR": { name: "FIR La Habana (Cuba)", lat: 23.0026, lon: -82.4089, type: "FIR", code: "MUFH" },
+            "TJZS_FIR": { name: "FIR San Juan (Puerto Rico / EE. UU.)", lat: 18.4394, lon: -66.0019, type: "FIR", code: "TJZS" },
+            "TTPP_FIR": { name: "FIR Piarco (Trinidad y Tobago)", lat: 10.6000, lon: -61.3500, type: "FIR", code: "TTPP" }
+        };
+
+        let intermediateWaypoints = ["ISARA", "AKPEP"];
+        let activeWaypoints = [];
+        let map, markerGroup, polylineLayer;
+        let baseMap;
+
+        function calculateHaversineDistanceNM(lat1, lon1, lat2, lon2) {
+            const R = 3440.065;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return R * c;
+        }
+
+        function calculateTotalRouteDistanceNM() {
+            let totalNM = 0;
+            for (let i = 0; i < activeWaypoints.length - 1; i++) {
+                const wp1 = waypointsDB[activeWaypoints[i]];
+                const wp2 = waypointsDB[activeWaypoints[i + 1]];
+                if (wp1 && wp2) {
+                    totalNM += calculateHaversineDistanceNM(wp1.lat, wp1.lon, wp2.lat, wp2.lon);
+                }
+            }
+            return Math.round(totalNM);
+        }
+
+        function convertDecimalHoursToHHMM(decimalHours) {
+            if (isNaN(decimalHours) || decimalHours < 0) return "00:00";
+            const hours = Math.floor(decimalHours);
+            const minutes = Math.round((decimalHours - hours) * 60);
+            return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+        }
+
+        function calculateAutomaticFIRsAndBreakdown() {
+            if (activeWaypoints.length < 2) {
+                return { text: "NO HAY SUFICIENTES PUNTOS EN LA RUTA", printText: "-" };
+            }
+            let breakdownLines = [];
+            let detectedFIRsSet = new Set();
+            let currentFIR = null;
+
+            for (let i = 0; i < activeWaypoints.length; i++) {
+                const code = activeWaypoints[i];
+                const wp = waypointsDB[code];
+                if (wp) {
+                    if (wp.type === "FIR") {
+                        detectedFIRsSet.add(wp.code || code);
+                        currentFIR = wp.code || code;
+                    } else if (wp.fir) {
+                        let assignedFirCode = waypointsDB[wp.fir] ? (waypointsDB[wp.fir].code || wp.fir) : wp.fir;
+                        if (!currentFIR) {
+                            currentFIR = assignedFirCode;
+                        } else if (currentFIR !== assignedFirCode) {
+                            breakdownLines.push(`⚠️ Cambio de FIR: ${currentFIR} ➔ ${assignedFirCode} en [${code}]`);
+                            currentFIR = assignedFirCode;
+                        }
+                        detectedFIRsSet.add(currentFIR);
+                    }
+                }
+            }
+
+            for (let i = 0; i < activeWaypoints.length - 1; i++) {
+                const code1 = activeWaypoints[i];
+                const code2 = activeWaypoints[i + 1];
+                const wp1 = waypointsDB[code1];
+                const wp2 = waypointsDB[code2];
+                if (wp1 && wp2) {
+                    const distNM = calculateHaversineDistanceNM(wp1.lat, wp1.lon, wp2.lat, wp2.lon);
+                    const midLat = (wp1.lat + wp2.lat) / 2;
+                    const midLon = (wp1.lon + wp2.lon) / 2;
+                    let segmentFir = "SVZM";
+                    if (midLat > 12.0) segmentFir = "TNCF / TJZS";
+                    else if (midLat < 0 && midLon > -65) segmentFir = "SBAZ";
+                    else if (midLat < -10) segmentFir = "SLLF";
+                    else if (midLon < -72) segmentFir = "SKEC";
+                    breakdownLines.push(`${code1} ➔ ${code2}: ${Math.round(distNM)} NM [${segmentFir}]`);
+                }
+            }
+
+            let firArray = Array.from(detectedFIRsSet);
+            if (firArray.length === 0) firArray = ["SVZM"];
+            const finalSummary = `FIRs INVOLUCRADAS: [ ${firArray.join(" ➔ ")} ]\n\nDETALLE DE TRAMOS:\n` + breakdownLines.join("\n");
+            return { text: finalSummary, printText: `FIRs: [ ${firArray.join(" - ")} ] | ` + breakdownLines.join(" | ") };
+        }
+
+        function populateSelector() {
+            const manualSelector = document.getElementById('manual_waypoint_selector');
+            manualSelector.innerHTML = '<option value="" disabled selected>-- SELECCIONAR PUNTO / FIR --</option>';
+            Object.keys(waypointsDB).sort().forEach(code => {
+                const optManual = document.createElement('option');
+                optManual.value = code;
+                optManual.textContent = `${code} - ${waypointsDB[code].name}`;
+                manualSelector.appendChild(optManual);
+            });
+        }
+
+        function appendManualWaypoint() {
+            const selector = document.getElementById('manual_waypoint_selector');
+            const selectedWp = selector.value;
+            const manualInput = document.getElementById('manual_route_input');
+            if (selectedWp) {
+                manualInput.value = manualInput.value.trim() === "" ? selectedWp : manualInput.value.trim() + " " + selectedWp;
+                selector.selectedIndex = 0;
+                syncManualRouteToChips();
+                calculateAll();
+            }
+        }
+
+        function removeLastManualWaypoint() {
+            const manualInput = document.getElementById('manual_route_input');
+            const tokens = manualInput.value.trim().split(/\s+/);
+            if (tokens.length > 0 && tokens[0] !== "") {
+                tokens.pop();
+                manualInput.value = tokens.join(" ");
+                syncManualRouteToChips();
+                calculateAll();
+            }
+        }
+
+        function clearManualRoute() {
+            document.getElementById('manual_route_input').value = "";
+            intermediateWaypoints = [];
+            rebuildActiveWaypoints();
+            calculateAll();
+        }
+
+        function generateOptimizedRoute(orig, dest) {
+            orig = orig.toUpperCase().trim();
+            dest = dest.toUpperCase().trim();
+            const routes = {
+                "SVMI-SLVR": "SVMI ISARA AKPEP TNCF_FIR SLVR",
+                "SVMI-MDPC": "SVMI DILOK ARUBA TJZS_FIR MDPC",
+                "SVMI-SKBO": "SVMI BNS SKEC_FIR SKBO"
+            };
+            return routes[`${orig}-${dest}`] || `SVMI ${orig} DCT ${dest}`;
+        }
+
+        function rebuildActiveWaypoints() {
+            const manualInput = document.getElementById('manual_route_input').value.trim();
+            if (manualInput !== "") {
+                activeWaypoints = manualInput.split(/\s+/).map(w => w.toUpperCase());
+            } else {
+                const origin = document.getElementById('origin_input').value.toUpperCase().trim();
+                const destination = document.getElementById('destination_input').value.toUpperCase().trim();
+                activeWaypoints = [origin, ...intermediateWaypoints, destination].filter(code => code !== "");
+            }
+            renderWaypointChips();
+        }
+
+        function syncManualRouteToChips() {
+            const manualInput = document.getElementById('manual_route_input').value.trim();
+            if (manualInput !== "") {
+                const tokens = manualInput.split(/\s+/);
+                intermediateWaypoints = tokens.length > 2 ? tokens.slice(1, tokens.length - 1) : [];
+            }
+            renderWaypointChips();
+        }
+
+        function handleOriginDestinationChange() {
+            const orig = document.getElementById('origin_input').value;
+            const dest = document.getElementById('destination_input').value;
+            const optRoute = generateOptimizedRoute(orig, dest);
+            document.getElementById('optimized_route_display').value = optRoute;
+            document.getElementById('manual_route_input').value = optRoute;
+            syncManualRouteToChips();
+            rebuildActiveWaypoints();
+            calculateAll();
+        }
+
+        function renderWaypointChips() {
+            const container = document.getElementById('waypoint_chips_container');
+            container.innerHTML = "";
+            intermediateWaypoints.forEach((code, index) => {
+                const chip = document.createElement('div');
+                chip.className = 'chip';
+                chip.innerHTML = `${code} <span class="remove-btn" onclick="removeIntermediateWaypoint(${index})">&times;</span>`;
+                container.appendChild(chip);
+            });
+        }
+
+        function removeIntermediateWaypoint(index) {
+            if (index >= 0 && index < intermediateWaypoints.length) {
+                intermediateWaypoints.splice(index, 1);
+                const origin = document.getElementById('origin_input').value.toUpperCase().trim();
+                const dest = document.getElementById('destination_input').value.toUpperCase().trim();
+                document.getElementById('manual_route_input').value = [origin, ...intermediateWaypoints, dest].join(" ");
+                rebuildActiveWaypoints();
+                calculateAll();
+            }
+        }
+
+        function initMap() {
+            baseMap = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' });
+            map = L.map('map', { center: [10.4806, -66.9036], zoom: 5, layers: [baseMap] });
+            markerGroup = L.layerGroup().addTo(map);
+            populateSelector();
+            handleOriginDestinationChange();
+        }
+
+        function plotRoute() {
+            markerGroup.clearLayers();
+            if (polylineLayer) map.removeLayer(polylineLayer);
+            const coords = [];
+
+            activeWaypoints.forEach(code => {
+                if (waypointsDB[code]) {
+                    const wp = waypointsDB[code];
+                    coords.push([wp.lat, wp.lon]);
+                    let markerIcon;
+                    if (wp.type === "FIX") {
+                        markerIcon = L.divIcon({ className: 'intersection-marker', html: `<div class="triangle-symbol"><div class="triangle-label">${code}</div></div>`, iconSize: [14, 12], iconAnchor: [7, 6] });
+                    } else if (wp.type === "FIR") {
+                        markerIcon = L.divIcon({ className: 'intersection-marker', html: `<div style="background:#dc2626; color:#fff; font-size:9px; font-weight:bold; padding:2px 4px; border-radius:3px; border:1px solid #fff; white-space:nowrap;">${code}</div>`, iconSize: [50, 15], iconAnchor: [25, 7] });
+                    } else {
+                        markerIcon = L.divIcon({ className: 'intersection-marker', html: `<div style="background:#2563eb; width:10px; height:10px; border-radius:50%; border:2px solid #fff;"></div>`, iconSize: [10, 10], iconAnchor: [5, 5] });
+                    }
+                    L.marker([wp.lat, wp.lon], { icon: markerIcon }).addTo(markerGroup).bindPopup(`<b>${code}</b> (${wp.type})<br>${wp.name}`);
+                }
+            });
+
+            const selectedAlt = document.getElementById('alt_input').value.toUpperCase().trim();
+            if (waypointsDB[selectedAlt] && coords.length > 0) {
+                const altData = waypointsDB[selectedAlt];
+                const lastCoord = coords[coords.length - 1];
+                L.marker([altData.lat, altData.lon]).addTo(markerGroup).bindPopup(`<b>ALTERNADO: ${selectedAlt}</b><br>${altData.name}`);
+                L.polyline([lastCoord, [altData.lat, altData.lon]], { color: '#dc2626', weight: 2, dashArray: '5, 10' }).addTo(markerGroup);
+            }
+
+            if (coords.length > 0) {
+                polylineLayer = L.polyline(coords, { color: '#2563eb', weight: 4 }).addTo(map);
+                map.fitBounds(coords, { padding: [30, 30] });
+            }
+        }
+
+        function calculateAll() {
+            const unit = document.getElementById('weight_unit').value;
+            const tail = document.getElementById('tail_number').value;
+            const paxCount = parseFloat(document.getElementById('pax_count').value) || 0;
+            const speedKtas = parseFloat(document.getElementById('cruising_speed').value) || 450;
+            const obs = document.getElementById('obs_note').value;
+
+            rebuildActiveWaypoints();
+
+            const paxKg = paxCount * PAX_STD_KG;
+            const paxLbs = paxCount * PAX_STD_LBS;
+            document.getElementById('pax_weight_display').value = (unit === "KG") ? `${paxKg.toLocaleString('es-ES')} KG` : `${paxLbs.toLocaleString('es-ES')} LBS`;
+
+            const autoDistNM = calculateTotalRouteDistanceNM();
+            const autoDistKM = (autoDistNM * 1.852).toFixed(2);
+            document.getElementById('dist_nm').value = autoDistNM;
+            document.getElementById('dist_km').value = autoDistKM;
+
+            const flightTimeDecimal = speedKtas > 0 ? (autoDistNM / speedKtas) : 0;
+            const flightHoursStr = convertDecimalHoursToHHMM(flightTimeDecimal);
+            const blockHoursStr = convertDecimalHoursToHHMM(flightTimeDecimal + 0.5);
+
+            document.getElementById('flight_hours').value = flightHoursStr;
+            document.getElementById('block_hours').value = blockHoursStr;
+
+            const firResult = calculateAutomaticFIRsAndBreakdown();
+            document.getElementById('fir_dynamic_display').value = firResult.text;
+
+            const inputFob = parseFloat(document.getElementById('fob_val').value) || 0;
+            const inputBurn = parseFloat(document.getElementById('burn_val').value) || 0;
+            const inputReq = parseFloat(document.getElementById('req_val').value) || 0;
+
+            let fobKg = unit === "KG" ? inputFob : inputFob * KG_FACTOR;
+            let burnKg = unit === "KG" ? inputBurn : inputBurn * KG_FACTOR;
+            let reqKg = unit === "KG" ? inputReq : inputReq * KG_FACTOR;
+
+            const remKg = fobKg - burnKg;
+            document.getElementById('rem_val').value = Math.round(unit === "KG" ? remKg : remKg * LBS_FACTOR);
+
+            const weightPerPax = (unit === "KG") ? PAX_STD_KG : PAX_STD_LBS;
+            const maxPaxAllowed = weightPerPax > 0 ? Math.floor(Math.abs(remKg) / weightPerPax) : 0;
+            const maxPaxStr = `${maxPaxAllowed} PAXS (Máx. según remanente)`;
+            document.getElementById('max_pax_allowed').value = maxPaxStr;
+
+            let tbodyHTML = "";
+            [
+                { name: "COMBUSTIBLE TOTAL (FOB)", kg: fobKg },
+                { name: "CONSUMO (TRIP FUEL)", kg: burnKg },
+                { name: "COMBUSTIBLE REQUERIDO", kg: reqKg },
+                { name: "REMANENTE ESTIMADO", kg: remKg }
+            ].forEach(row => {
+                tbodyHTML += `<tr><td><strong>${row.name}</strong></td><td>${Math.round(row.kg).toLocaleString('es-ES')}</td><td>${Math.round(row.kg * LBS_FACTOR).toLocaleString('es-ES')}</td><td>${Math.round(row.kg * LTS_PER_KG).toLocaleString('es-ES')}</td><td>${Math.round(row.kg * GAL_PER_KG).toLocaleString('es-ES')}</td></tr>`;
+            });
+
+            document.getElementById('fuel-table').innerHTML = tbodyHTML;
+            document.getElementById('print_fuel_table').innerHTML = tbodyHTML;
+
+            const now = new Date();
+            document.getElementById('print_date').innerText = now.toISOString().slice(0, 10) + " " + now.toTimeString().slice(0, 5);
+            document.getElementById('print_tail').innerText = tail;
+            document.getElementById('p_route').innerText = activeWaypoints.join(" ➔ ");
+            document.getElementById('p_pax').innerText = `${paxCount} PAXS`;
+            document.getElementById('p_fhours').innerText = flightHoursStr;
+            document.getElementById('p_bhours').innerText = blockHoursStr;
+            document.getElementById('p_distnm').innerText = autoDistNM;
+            document.getElementById('p_distkm').innerText = autoDistKM;
+            document.getElementById('p_firs_breakdown').innerText = firResult.printText;
+            document.getElementById('p_max_pax').innerText = maxPaxStr;
+            document.getElementById('p_obs').innerText = obs;
+
+            document.getElementById('terminal').innerText = `=== FLIGHT DISPATCHER • CÁLCULO AUTOMÁTICO ACTIVO ===\nMATRÍCULA: ${tail} | RUTA: ${activeWaypoints.join(" ➔ ")}\nDISTANCIA: ${autoDistNM} NM (${autoDistKM} KM) | TIEMPO: ${flightHoursStr} (BLOQUE: ${blockHoursStr})\n${firResult.text}`;
+
+            document.getElementById('printArea').style.display = 'block';
+            plotRoute();
+        }
+
+        window.onload = initMap;
+    </script>
+</body>
+</html>
